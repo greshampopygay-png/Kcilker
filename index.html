@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Кликер</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Figtree:wght@300;600;800;900&display=swap');
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  font-family: 'Figtree', sans-serif;
+  background: #fff;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  user-select: none;
+}
+
+#flash {
+  position: fixed; inset: 0;
+  pointer-events: none; opacity: 0; z-index: 0;
+  transition: opacity 0.07s;
+}
+
+#counter {
+  position: fixed; top: 80px;
+  left: 50%; transform: translateX(-50%);
+  font-size: clamp(44px, 10vw, 90px);
+  font-weight: 900; color: #111;
+  letter-spacing: -2px; z-index: 10;
+  white-space: nowrap; transition: color 0.3s;
+}
+
+/* ── IMAGE URL BAR ── */
+#img-bar {
+  position: fixed; top: 16px; left: 50%;
+  transform: translateX(-50%);
+  z-index: 50; display: flex; align-items: center; gap: 6px;
+  background: rgba(255,255,255,0.95);
+  backdrop-filter: blur(12px);
+  border-radius: 50px; padding: 6px 8px 6px 16px;
+  box-shadow: 0 2px 24px rgba(0,0,0,0.13);
+  max-width: 94vw;
+}
+#img-bar input {
+  border: none; outline: none;
+  font-family: 'Figtree', sans-serif;
+  font-size: 13px; color: #333; background: transparent;
+  width: 240px; max-width: 44vw;
+}
+#img-bar input::placeholder { color: #bbb; }
+#img-apply {
+  background: #111; color: #fff; border: none;
+  border-radius: 40px; padding: 7px 16px;
+  font-family: 'Figtree', sans-serif;
+  font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap;
+}
+#img-apply:hover { background: #333; }
+#img-clear {
+  background: none; border: none; font-size: 18px;
+  line-height: 1; cursor: pointer; color: #ccc;
+  padding: 2px 4px; display: none;
+}
+#img-clear:hover { color: #e00; }
+
+/* ── PNG BOX ── */
+#png-wrap { position: relative; z-index: 10; margin-top: 30px; }
+#png-box {
+  width: clamp(160px, 30vw, 260px);
+  height: clamp(160px, 30vw, 260px);
+  cursor: pointer; border-radius: 18px;
+  background: #f2f2f2; border: 4px solid #ccc;
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden; position: relative;
+  transition: transform 0.07s, box-shadow 0.3s, border-color 0.3s, background 0.3s;
+}
+#png-box:active { transform: scale(0.92); }
+
+#custom-img {
+  width: 100%; height: 100%; object-fit: cover;
+  display: none; pointer-events: none; border-radius: 14px;
+}
+.placeholder {
+  width: 75%; height: 75%;
+  border: 3px dashed #d0d0d0; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+}
+.placeholder svg { opacity: 0.18; }
+#img-tip {
+  text-align: center; margin-top: 10px;
+  font-size: 12px; color: #bbb; font-weight: 600;
+}
+
+.ripple {
+  position: absolute; border-radius: 50%;
+  transform: scale(0);
+  animation: rip 0.55s ease-out forwards; pointer-events: none;
+}
+@keyframes rip { to { transform: scale(5); opacity: 0; } }
+
+.floaty {
+  position: fixed; font-size: 22px; font-weight: 800;
+  pointer-events: none;
+  animation: floatUp 0.75s ease-out forwards; z-index: 999;
+}
+@keyframes floatUp {
+  0% { transform: translateY(0) scale(1); opacity: 1; }
+  100% { transform: translateY(-90px) scale(0.6); opacity: 0; }
+}
+
+/* ── BOTTOM ── */
+#bottom {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  display: flex; align-items: flex-end;
+  justify-content: space-between;
+  padding: 20px 28px 28px; z-index: 20;
+  pointer-events: none;
+  background: linear-gradient(0deg, rgba(255,255,255,0.97) 60%, transparent);
+}
+#upgrades-btn {
+  pointer-events: all; background: #111; color: #fff;
+  border: none; font-family: 'Figtree', sans-serif;
+  font-size: 15px; font-weight: 700; padding: 13px 22px;
+  border-radius: 50px; cursor: pointer;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.2); transition: transform 0.1s;
+}
+#upgrades-btn:hover { transform: scale(1.05); }
+#cps-badge {
+  font-size: 13px; font-weight: 700; color: #555;
+  padding: 11px 18px;
+  background: rgba(255,255,255,0.92);
+  border-radius: 50px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+}
+
+/* ── MODAL ── */
+#modal-bg {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.3); backdrop-filter: blur(8px);
+  z-index: 100; display: none;
+  align-items: flex-end; justify-content: center;
+}
+#modal-bg.open { display: flex; }
+#modal {
+  background: #fff; border-radius: 28px 28px 0 0;
+  width: 100%; max-width: 520px; max-height: 80vh;
+  overflow-y: auto; padding: 12px 24px 44px;
+  animation: slideUp 0.3s cubic-bezier(0.34,1.56,0.64,1);
+}
+@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+.modal-header {
+  display: flex; align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px; padding-top: 8px;
+}
+.modal-header h2 { font-size: 22px; font-weight: 800; color: #111; }
+#modal-close {
+  background: #f2f2f2; border: none; border-radius: 50%;
+  width: 36px; height: 36px; font-size: 16px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.tabs { display: flex; gap: 8px; margin-bottom: 18px; }
+.tab {
+  flex: 1; padding: 10px; border-radius: 12px;
+  border: 2px solid #eee; background: none;
+  font-family: 'Figtree', sans-serif;
+  font-weight: 700; font-size: 14px;
+  cursor: pointer; color: #999; transition: all 0.15s;
+}
+.tab.active { background: #111; color: #fff; border-color: #111; }
+
+.upg-card {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 16px; border-radius: 16px;
+  background: #f7f7f7; margin-bottom: 9px;
+}
+.upg-info { flex: 1; }
+.upg-name { font-weight: 700; font-size: 15px; color: #111; }
+.upg-desc { font-size: 12px; color: #888; margin-top: 2px; }
+.upg-owned { font-size: 11px; font-weight: 600; color: #bbb; margin-top: 3px; }
+.upg-buy {
+  background: #ddd; color: #aaa; border: none;
+  border-radius: 12px; padding: 9px 16px;
+  font-family: 'Figtree', sans-serif;
+  font-size: 13px; font-weight: 700;
+  cursor: not-allowed; white-space: nowrap;
+  min-width: 80px; text-align: center;
+  transition: background 0.15s, transform 0.1s;
+}
+.upg-buy.can { background: #111; color: #fff; cursor: pointer; }
+.upg-buy.can:hover { background: #333; transform: scale(1.04); }
+.upg-buy.maxed { background: #d1fae5; color: #059669; cursor: default; }
+
+.skin-card {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 16px; border-radius: 16px;
+  background: #f7f7f7; margin-bottom: 9px;
+}
+.skin-preview {
+  width: 52px; height: 52px; border-radius: 12px;
+  flex-shrink: 0; display: flex;
+  align-items: center; justify-content: center;
+  font-size: 26px; border: 3px solid transparent;
+}
+.skin-info { flex: 1; }
+.skin-name { font-weight: 700; font-size: 15px; color: #111; }
+.skin-sub { font-size: 12px; color: #aaa; margin-top: 2px; }
+.skin-btn {
+  border: 2px solid #ddd; border-radius: 12px; padding: 9px 16px;
+  font-family: 'Figtree', sans-serif;
+  font-size: 13px; font-weight: 700;
+  cursor: default; color: #bbb; background: #fff;
+  white-space: nowrap; transition: all 0.15s;
+}
+.skin-btn.buy { border-color: #111; color: #111; cursor: pointer; }
+.skin-btn.buy:hover { background: #111; color: #fff; }
+.skin-btn.equip { border-color: #111; background: #111; color: #fff; cursor: pointer; }
+.skin-btn.equip:hover { background: #333; }
+.skin-btn.equipped { border-color: #22c55e; background: #22c55e; color: #fff; cursor: default; }
+</style>
+</head>
+<body>
+
+<div id="flash"></div>
+
+<div id="img-bar">
+  <input id="img-input" type="text" placeholder="Ссылка на картинку (GitHub, imgur…)" />
+  <button id="img-apply">Применить</button>
+  <button id="img-clear">✕</button>
+</div>
+
+<div id="counter">0</div>
+
+<div id="png-wrap">
+  <div id="png-box">
+    <img id="custom-img" src="" alt="" />
+    <div class="placeholder" id="placeholder">
+      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="1.4">
+        <rect x="3" y="3" width="18" height="18" rx="3"/>
+        <circle cx="8.5" cy="8.5" r="1.5"/>
+        <path d="M21 15l-5-5L5 21"/>
+      </svg>
+    </div>
+  </div>
+  <div id="img-tip">вставь ссылку в строку выше</div>
+</div>
+
+<div id="bottom">
+  <div id="cps-badge">⚡ 0 / сек</div>
+  <button id="upgrades-btn">Магазин 🛒</button>
+</div>
+
+<div id="modal-bg">
+  <div id="modal">
+    <div class="modal-header">
+      <h2>Магазин</h2>
+      <button id="modal-close">✕</button>
+    </div>
+    <div class="tabs">
+      <button class="tab active" data-tab="upgrades">Улучшения</button>
+      <button class="tab" data-tab="skins">Скины</button>
+    </div>
+    <div id="tab-upgrades"></div>
+    <div id="tab-skins" style="display:none"></div>
+  </div>
+</div>
+
+<script>
+const G = {
+  clicks: 0, cpc: 1, cps: 0,
+  owned: {}, skin: 'default', unlocked: { default: true },
+};
+
+// ── IMAGE URL LOGIC ────────────────────────────────────────────
+const imgInput   = document.getElementById('img-input');
+const imgApply   = document.getElementById('img-apply');
+const imgClear   = document.getElementById('img-clear');
+const customImg  = document.getElementById('custom-img');
+const placeholder= document.getElementById('placeholder');
+const imgTip     = document.getElementById('img-tip');
+
+function toRawUrl(url) {
+  url = url.trim();
+  // GitHub blob → raw
+  const m = url.match(/^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/blob\/(.+)$/);
+  if (m) return `https://raw.githubusercontent.com/${m[1]}/${m[2]}/${m[3]}`;
+  return url;
+}
+
+function applyImage(raw) {
+  const url = toRawUrl(raw);
+  customImg.src = url;
+  customImg.style.display = 'block';
+  placeholder.style.display = 'none';
+  imgClear.style.display = 'block';
+  imgTip.style.display = 'none';
+}
+
+function clearImage() {
+  customImg.src = '';
+  customImg.style.display = 'none';
+  placeholder.style.display = 'flex';
+  imgClear.style.display = 'none';
+  imgInput.value = '';
+  imgTip.style.display = 'block';
+  imgTip.style.color = '#bbb';
+  imgTip.textContent = 'вставь ссылку в строку выше';
+}
+
+customImg.onerror = () => {
+  customImg.style.display = 'none';
+  placeholder.style.display = 'flex';
+  imgTip.textContent = '⚠️ Не удалось загрузить — проверь ссылку';
+  imgTip.style.color = '#f97316';
+  imgTip.style.display = 'block';
+};
+customImg.onload = () => { imgTip.style.display = 'none'; };
+
+imgApply.onclick = () => { const v = imgInput.value.trim(); if (v) applyImage(v); };
+imgClear.onclick = clearImage;
+imgInput.addEventListener('keydown', e => { if (e.key === 'Enter') imgApply.click(); });
+
+// ── FLASH COLORS ───────────────────────────────────────────────
+const COLORS = [
+  '#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#c77dff',
+  '#ff9f1c','#00b4d8','#f72585','#b5e48c','#ff477e',
+  '#48cae4','#ffb703','#e76f51','#2ec4b6','#f4a261',
+];
+let colorIdx = 0;
+const flashEl = document.getElementById('flash');
+
+// ── SKINS ──────────────────────────────────────────────────────
+const SKINS = [
+  { id:'default', name:'Обычный',  cost:0,     emoji:'🌫️', bg:'#f2f2f2',   border:'#ccc',    glow:'',  ctext:'#111' },
+  { id:'silver',  name:'Серебро',  cost:100,   emoji:'🥈', bg:'linear-gradient(135deg,#e8e8e8,#c0c0c0,#e8e8e8)', border:'#a8a9ad', glow:'0 0 22px rgba(168,169,173,0.5)', ctext:'#444' },
+  { id:'bronze',  name:'Бронза',   cost:250,   emoji:'🥉', bg:'linear-gradient(135deg,#f4c488,#cd7f32,#f4c488)', border:'#cd7f32', glow:'0 0 28px rgba(205,127,50,0.5)',  ctext:'#6b3a00' },
+  { id:'gold',    name:'Золото',   cost:600,   emoji:'🥇', bg:'linear-gradient(135deg,#fff9c4,#ffd700,#fff9c4)', border:'#ffd700', glow:'0 0 36px rgba(255,215,0,0.7)',   ctext:'#7a5c00' },
+  { id:'diamond', name:'Алмаз',    cost:1500,  emoji:'💎', bg:'linear-gradient(135deg,#e0f7ff,#7dd3fc,#e0f7ff)', border:'#7dd3fc', glow:'0 0 40px rgba(125,211,252,0.8)', ctext:'#0369a1' },
+  { id:'lava',    name:'Лава',     cost:3000,  emoji:'🌋', bg:'linear-gradient(135deg,#fde68a,#f97316,#dc2626)', border:'#ef4444', glow:'0 0 44px rgba(239,68,68,0.8)',   ctext:'#fff' },
+  { id:'void',    name:'Пустота',  cost:6000,  emoji:'🕳️', bg:'linear-gradient(135deg,#0f0f23,#1e1b4b,#0f0f23)', border:'#818cf8', glow:'0 0 50px rgba(129,140,248,0.9)',ctext:'#818cf8' },
+  { id:'rainbow', name:'Радуга',   cost:12000, emoji:'🌈', bg:'linear-gradient(135deg,#ff9a9e,#fad0c4,#a1c4fd,#c2e9fb)', border:'transparent', glow:'0 0 60px rgba(255,100,200,0.5)', ctext:'#333' },
+];
+
+const pngBox    = document.getElementById('png-box');
+const counterEl = document.getElementById('counter');
+const cpsBadge  = document.getElementById('cps-badge');
+const modalBg   = document.getElementById('modal-bg');
+
+function applySkin() {
+  const s = SKINS.find(x => x.id === G.skin);
+  pngBox.style.background = s.bg;
+  pngBox.style.border     = `4px solid ${s.border}`;
+  pngBox.style.boxShadow  = s.glow;
+  counterEl.style.color   = s.ctext;
+}
+function fmt(n) {
+  if (n >= 1e9) return (n/1e9).toFixed(1)+'B';
+  if (n >= 1e6) return (n/1e6).toFixed(1)+'M';
+  if (n >= 1e3) return (n/1e3).toFixed(1)+'K';
+  return n;
+}
+
+// ── CLICK ──────────────────────────────────────────────────────
+pngBox.addEventListener('click', function(e) {
+  G.clicks += G.cpc;
+  colorIdx = (colorIdx + 1) % COLORS.length;
+  const col = COLORS[colorIdx];
+  flashEl.style.background = col;
+  flashEl.style.opacity = '0.35';
+  clearTimeout(pngBox._ft);
+  pngBox._ft = setTimeout(() => { flashEl.style.opacity = '0'; }, 90);
+
+  const rect = pngBox.getBoundingClientRect();
+  const r = document.createElement('div');
+  r.className = 'ripple';
+  const sz = Math.max(rect.width, rect.height);
+  Object.assign(r.style, {
+    width: sz+'px', height: sz+'px',
+    left: (e.clientX - rect.left - sz/2)+'px',
+    top:  (e.clientY - rect.top  - sz/2)+'px',
+    background: col+'44',
+  });
+  pngBox.appendChild(r);
+  setTimeout(() => r.remove(), 600);
+
+  const fl = document.createElement('div');
+  fl.className = 'floaty';
+  fl.textContent = '+' + G.cpc;
+  fl.style.cssText = `left:${e.clientX+(Math.random()*30-15)}px;top:${e.clientY-10}px;color:${col};`;
+  document.body.appendChild(fl);
+  setTimeout(() => fl.remove(), 750);
+
+  updateUI();
+});
+
+setInterval(() => { if (G.cps > 0) { G.clicks += G.cps; updateUI(); } }, 1000);
+
+// ── UPGRADES ───────────────────────────────────────────────────
+const UPGRADES = [
+  { id:'c1', name:'+1 за клик',  desc:'Каждый тык даёт +2',       cost:10,   repeat:true,  fn:()=>G.cpc+=1   },
+  { id:'a1', name:'Авто-кликер', desc:'+1 клик в секунду',          cost:15,   repeat:false, fn:()=>G.cps+=1   },
+  { id:'c2', name:'+3 за клик',  desc:'Ещё +3 к каждому клику',    cost:50,   repeat:true,  fn:()=>G.cpc+=3   },
+  { id:'a2', name:'Авто II',     desc:'+3 в секунду',               cost:80,   repeat:false, fn:()=>G.cps+=3   },
+  { id:'c3', name:'Мега тык',    desc:'+10 за каждый клик',         cost:200,  repeat:true,  fn:()=>G.cpc+=10  },
+  { id:'a3', name:'Авто III',    desc:'+10 в секунду',              cost:300,  repeat:false, fn:()=>G.cps+=10  },
+  { id:'c4', name:'Супер удар',  desc:'+25 за клик',                cost:800,  repeat:true,  fn:()=>G.cpc+=25  },
+  { id:'a4', name:'Турбо',       desc:'+30 в секунду',              cost:1000, repeat:false, fn:()=>G.cps+=30  },
+  { id:'c5', name:'БОГО-КЛИК',   desc:'+100 за клик',               cost:5000, repeat:true,  fn:()=>G.cpc+=100 },
+  { id:'a5', name:'ИИ-кликер',   desc:'+100 в секунду',             cost:8000, repeat:false, fn:()=>G.cps+=100 },
+];
+
+function renderUpgrades() {
+  const el = document.getElementById('tab-upgrades');
+  el.innerHTML = '';
+  UPGRADES.forEach(u => {
+    const count = G.owned[u.id] || 0;
+    const maxed = !u.repeat && count >= 1;
+    const canBuy = G.clicks >= u.cost && !maxed;
+    const card = document.createElement('div');
+    card.className = 'upg-card';
+    card.innerHTML = `
+      <div class="upg-info">
+        <div class="upg-name">${u.name}</div>
+        <div class="upg-desc">${u.desc}</div>
+        ${count > 0 ? `<div class="upg-owned">Куплено: ${count}×</div>` : ''}
+      </div>
+      <button class="upg-buy ${maxed?'maxed':canBuy?'can':''}">${maxed?'✓':'🪙 '+fmt(u.cost)}</button>
+    `;
+    if (canBuy) {
+      card.querySelector('button').onclick = () => {
+        G.clicks -= u.cost; G.owned[u.id] = (G.owned[u.id]||0)+1;
+        u.fn(); updateUI();
+      };
+    }
+    el.appendChild(card);
+  });
+}
+
+function renderSkins() {
+  const el = document.getElementById('tab-skins');
+  el.innerHTML = '';
+  SKINS.forEach(s => {
+    const owned = !!G.unlocked[s.id];
+    const active = G.skin === s.id;
+    const canBuy = !owned && G.clicks >= s.cost;
+    let bc, bt;
+    if (active)      { bc='equipped'; bt='✓ Надет'; }
+    else if (owned)  { bc='equip';    bt='Надеть'; }
+    else if (canBuy) { bc='buy';      bt='🪙 '+fmt(s.cost); }
+    else             { bc='';         bt='🔒 '+fmt(s.cost); }
+    const card = document.createElement('div');
+    card.className = 'skin-card';
+    card.innerHTML = `
+      <div class="skin-preview" style="background:${s.bg};border-color:${s.border||'#eee'};box-shadow:${s.glow||'none'}">${s.emoji}</div>
+      <div class="skin-info">
+        <div class="skin-name">${s.name}</div>
+        <div class="skin-sub">${s.cost===0?'Бесплатно':'🪙 '+fmt(s.cost)}</div>
+      </div>
+      <button class="skin-btn ${bc}">${bt}</button>
+    `;
+    const btn = card.querySelector('button');
+    if (canBuy) {
+      btn.onclick = () => { G.clicks -= s.cost; G.unlocked[s.id]=true; G.skin=s.id; applySkin(); updateUI(); };
+    } else if (owned && !active) {
+      btn.onclick = () => { G.skin=s.id; applySkin(); updateUI(); };
+    }
+    el.appendChild(card);
+  });
+}
+
+let curTab = 'upgrades';
+function updateUI() {
+  counterEl.textContent = fmt(G.clicks);
+  cpsBadge.textContent = '⚡ ' + fmt(G.cps) + ' / сек';
+  if (modalBg.classList.contains('open')) {
+    if (curTab === 'upgrades') renderUpgrades(); else renderSkins();
+  }
+}
+
+document.getElementById('upgrades-btn').onclick = () => { modalBg.classList.add('open'); updateUI(); };
+document.getElementById('modal-close').onclick  = () => modalBg.classList.remove('open');
+modalBg.addEventListener('click', e => { if (e.target === modalBg) modalBg.classList.remove('open'); });
+document.querySelectorAll('.tab').forEach(t => {
+  t.onclick = () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    t.classList.add('active'); curTab = t.dataset.tab;
+    document.getElementById('tab-upgrades').style.display = curTab==='upgrades' ? '' : 'none';
+    document.getElementById('tab-skins').style.display    = curTab==='skins'    ? '' : 'none';
+    updateUI();
+  };
+});
+
+applySkin();
+updateUI();
+</script>
+</body>
+  </html>
+  
